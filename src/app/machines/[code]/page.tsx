@@ -2,14 +2,23 @@
 
 import Link from "next/link";
 import { notFound, useParams, useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { UserAvatar, UserStack } from "@/components/user-avatar";
 import { PhaseDot, phaseProgress } from "@/components/phase-chip";
 import {
+  DISCIPLINE_LABEL,
   PHASE_DOT,
   PHASE_LABEL,
   PHASE_ORDER,
@@ -19,8 +28,16 @@ import {
   PRODUCTION_STATE_LABEL,
 } from "@/lib/labels";
 import { formatDate } from "@/lib/format";
-import { ArrowLeft, CalendarRange, Cpu } from "lucide-react";
-import type { PhaseState, PhaseType } from "@/lib/types";
+import {
+  ArrowLeft,
+  CalendarRange,
+  Cpu,
+  Pencil,
+  UserMinus,
+  UserPlus,
+} from "lucide-react";
+import { MachineDialog } from "@/components/machine-dialog";
+import { toast } from "sonner";
 
 export default function MachineDetailPage() {
   const params = useParams<{ code: string }>();
@@ -30,8 +47,26 @@ export default function MachineDetailPage() {
   const phases = useStore((s) => s.phases);
   const assets = useStore((s) => s.assets);
   const users = useStore((s) => s.users);
+  const createMachineMember = useStore((s) => s.createMachineMember);
+  const removeMachineMember = useStore((s) => s.removeMachineMember);
+  const updateMachine = useStore((s) => s.updateMachine);
+  const [pickerValue, setPickerValue] = useState<string>("");
+  const [editOpen, setEditOpen] = useState(false);
+  // 編集で機種コードが変わると URL と store の整合が一瞬ずれるため、
+  // 過去に表示した machine.id を保持して救済する
+  const trackedIdRef = useRef<string | null>(null);
 
-  const machine = machines.find((m) => m.code === params.code);
+  const machine = useMemo(() => {
+    let m = machines.find((x) => x.code === params.code);
+    if (!m && trackedIdRef.current) {
+      m = machines.find((x) => x.id === trackedIdRef.current);
+    }
+    return m;
+  }, [machines, params.code]);
+
+  useEffect(() => {
+    if (machine) trackedIdRef.current = machine.id;
+  }, [machine]);
 
   const data = useMemo(() => {
     if (!machine) return null;
@@ -50,8 +85,17 @@ export default function MachineDetailPage() {
     return { myProductions, myAssets, members, overallPct };
   }, [machine, productions, phases, assets, users]);
 
+  // 真に存在しない機種のときだけ 404 へ。URL 遷移中の一時的な不一致は除外する
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (machine) return;
+    // 過去に一度も機種を表示していない = この URL は本当に存在しない
+    if (trackedIdRef.current === null) {
+      notFound();
+    }
+  }, [machine]);
+
   if (!machine || !data) {
-    if (typeof window !== "undefined") notFound();
     return null;
   }
   const { myProductions, myAssets, members, overallPct } = data;
@@ -98,6 +142,18 @@ export default function MachineDetailPage() {
           <p className="max-w-2xl text-sm text-muted-foreground">
             {machine.description}
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {machine.releaseTarget && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-border/60 px-2.5 py-1 text-[11px] text-muted-foreground">
+              <CalendarRange className="size-3" />
+              {machine.releaseTarget} 投入
+            </span>
+          )}
+          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+            <Pencil className="size-3.5" />
+            編集
+          </Button>
         </div>
       </div>
 
@@ -325,25 +381,131 @@ export default function MachineDetailPage() {
         </TabsContent>
         <TabsContent value="members" className="mt-4">
           <Card className="border-border/60">
-            <CardContent className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-              {members.map((u) => (
-                <div
-                  key={u.id}
-                  className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/40 p-3"
-                >
-                  <UserAvatar user={u} size="md" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium">{u.name}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {u.discipline} · {u.email}
-                    </div>
-                  </div>
+            <CardContent className="space-y-4 p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <UserPlus className="size-3.5" />
+                  既存メンバーをこの機種にアサイン
                 </div>
-              ))}
+                <div className="ml-auto flex items-center gap-2">
+                  <Select
+                    value={pickerValue}
+                    onValueChange={(v) => setPickerValue(v)}
+                  >
+                    <SelectTrigger className="h-8 min-w-[220px] text-xs">
+                      <SelectValue placeholder="メンバーを選択..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users
+                        .filter((u) => !machine.memberIds.includes(u.id))
+                        .map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.name}
+                            {u.discipline
+                              ? ` · ${DISCIPLINE_LABEL[u.discipline]}`
+                              : ""}
+                          </SelectItem>
+                        ))}
+                      {users.filter((u) => !machine.memberIds.includes(u.id))
+                        .length === 0 && (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                          全員アサイン済み
+                        </div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    disabled={!pickerValue}
+                    onClick={() => {
+                      if (!pickerValue) return;
+                      const u = users.find((x) => x.id === pickerValue);
+                      createMachineMember(machine.id, pickerValue);
+                      toast.success(`「${u?.name}」をアサインしました`);
+                      setPickerValue("");
+                    }}
+                  >
+                    <UserPlus className="size-4" />
+                    アサイン
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>
+                  新規メンバーを登録するには{" "}
+                  <Link
+                    href="/members"
+                    className="text-foreground underline-offset-2 hover:underline"
+                  >
+                    /members
+                  </Link>{" "}
+                  ページから
+                </span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {members.map((u) => (
+                  <div
+                    key={u.id}
+                    className="group flex items-center gap-3 rounded-xl border border-border/60 bg-card/40 p-3"
+                  >
+                    <UserAvatar user={u} size="md" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium">{u.name}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {u.discipline ? DISCIPLINE_LABEL[u.discipline] : "—"}{" "}
+                        · {u.email}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="opacity-0 transition group-hover:opacity-100"
+                      onClick={() => {
+                        removeMachineMember(machine.id, u.id);
+                        toast(`「${u.name}」のアサインを解除しました`);
+                      }}
+                      title="アサイン解除"
+                    >
+                      <UserMinus className="size-3.5 text-muted-foreground hover:text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                {members.length === 0 && (
+                  <p className="col-span-full py-8 text-center text-sm text-muted-foreground">
+                    まだメンバーがアサインされていません
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      <MachineDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        mode="edit"
+        initial={machine}
+        existingCodes={machines.map((m) => m.code)}
+        onSubmit={(values) => {
+          const codeChanged = values.code !== machine.code;
+          // コード変更時は URL を先に書き換える。これで store 更新時の再レンダーで
+          // 新 params.code に対する machine が見つかり、404 を踏まずに済む
+          if (codeChanged) {
+            router.replace(`/machines/${values.code}`);
+          }
+          updateMachine(machine.id, {
+            code: values.code,
+            name: values.name,
+            series: values.series,
+            description: values.description,
+            color: values.color,
+            releaseTarget: values.releaseTarget || undefined,
+          });
+          toast.success(`機種「${values.name}」を更新しました`);
+          setEditOpen(false);
+        }}
+      />
     </div>
   );
 }

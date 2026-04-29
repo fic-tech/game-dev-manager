@@ -5,51 +5,59 @@ import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
 import type {
   ActivityEntry,
+  ActivityType,
   Asset,
-  ChangeLog,
-  Comment,
-  Issue,
   LampCue,
   Machine,
   Phase,
-  PhaseState,
   PhaseType,
   Production,
-  Project,
+  RevisionImpact,
   SoundCue,
   StoryboardScene,
-  TimeEntry,
   User,
-  WikiPage,
+  VideoTask,
 } from "./types";
-import {
-  seedActivities,
-  seedComments,
-  seedIssues,
-  seedProjects,
-  seedTimeEntries,
-  seedUsers,
-  seedWikiPages,
-} from "./seed";
 import {
   buildPachinkoSeed,
   pachinkoMachines,
   pachinkoUsers,
 } from "./pachinko-seed";
-import { PHASE_DEPENDENCIES } from "./labels";
+import { PHASE_DEPENDENCIES, PHASE_LABEL } from "./labels";
+
+/** 本データ受領 (rework) で自動的に実装中に戻すべき後続工程 */
+const REWORK_REOPEN_PHASES: PhaseType[] = [
+  "video",
+  "sound_impl",
+  "lamp",
+  "review",
+];
+
+/** 指定 production の video phase に VideoTask 合計を反映 */
+const syncVideoPhaseHours = (
+  phases: Phase[],
+  videoTasks: VideoTask[],
+  productionId: string
+): Phase[] => {
+  const tasks = videoTasks.filter((t) => t.productionId === productionId);
+  const est = tasks.reduce((s, t) => s + (t.estimatedHours || 0), 0);
+  const hasActual = tasks.some((t) => t.actualHours !== undefined);
+  const act = hasActual
+    ? tasks.reduce((s, t) => s + (t.actualHours ?? 0), 0)
+    : undefined;
+  return phases.map((ph) =>
+    ph.productionId === productionId && ph.type === "video"
+      ? { ...ph, estimatedHours: est, actualHours: act }
+      : ph
+  );
+};
 
 const pachinkoSeed = buildPachinkoSeed();
 
 const initialState = {
-  currentUserId: "u-1",
-  users: [...seedUsers, ...pachinkoUsers],
-  projects: seedProjects,
-  issues: seedIssues,
-  comments: seedComments,
-  changelogs: [] as ChangeLog[],
-  wikiPages: seedWikiPages,
-  activities: seedActivities,
-  timeEntries: seedTimeEntries,
+  currentUserId: pachinkoUsers[0]?.id ?? "",
+  users: [...pachinkoUsers] as User[],
+  activities: [] as ActivityEntry[],
   machines: pachinkoMachines,
   productions: pachinkoSeed.productions,
   phases: pachinkoSeed.phases,
@@ -57,6 +65,7 @@ const initialState = {
   assets: pachinkoSeed.assets,
   soundCues: pachinkoSeed.soundCues,
   lampCues: pachinkoSeed.lampCues,
+  videoTasks: pachinkoSeed.videoTasks,
 };
 
 type InitialState = typeof initialState;
@@ -65,37 +74,70 @@ interface State extends InitialState {
   hydrated: boolean;
   setHydrated: (v: boolean) => void;
   setCurrentUser: (id: string) => void;
-  createProject: (
-    input: Omit<Project, "id" | "createdAt" | "memberIds"> & {
+
+  // ユーザ
+  createUser: (
+    input: Omit<User, "id" | "avatarHue"> & { avatarHue?: number }
+  ) => User;
+  updateUser: (id: string, patch: Partial<User>) => void;
+
+  // 機種
+  createMachine: (
+    input: Omit<Machine, "id" | "createdAt" | "memberIds"> & {
       memberIds?: string[];
     }
-  ) => Project;
-  updateProject: (id: string, patch: Partial<Project>) => void;
-  archiveProject: (id: string, archived: boolean) => void;
-  createIssue: (
-    input: Omit<
-      Issue,
-      "id" | "number" | "createdAt" | "updatedAt" | "doneRatio" | "tags"
-    > & { doneRatio?: number; tags?: string[] }
-  ) => Issue;
-  updateIssue: (id: string, patch: Partial<Issue>) => void;
-  deleteIssue: (id: string) => void;
-  addComment: (issueId: string, body: string) => Comment | null;
-  upsertWikiPage: (page: Omit<WikiPage, "id" | "updatedAt">) => WikiPage;
-  logTime: (entry: Omit<TimeEntry, "id" | "createdAt">) => TimeEntry;
-  resetData: () => void;
-  // Pachinko domain actions
+  ) => Machine;
+  updateMachine: (id: string, patch: Partial<Machine>) => void;
+  createMachineMember: (machineId: string, userId: string) => void;
+  removeMachineMember: (machineId: string, userId: string) => void;
+
+  // 演出 / 工程
+  updateProduction: (id: string, patch: Partial<Production>) => void;
   updatePhase: (id: string, patch: Partial<Phase>) => void;
+
+  // シーン (Vコンテ)
   updateScene: (id: string, patch: Partial<StoryboardScene>) => void;
   addScene: (
     productionId: string,
     init?: Partial<Omit<StoryboardScene, "id" | "productionId">>
   ) => StoryboardScene;
   removeScene: (id: string) => void;
+
+  // アセット
   updateAsset: (id: string, patch: Partial<Asset>) => void;
+  addAsset: (
+    productionId: string,
+    init?: Partial<Omit<Asset, "id" | "productionId" | "machineId">>
+  ) => Asset | null;
+  removeAsset: (id: string) => void;
+  /** 仮データ → 本データへの切り替え。影響度を確定し、rework なら reworkRequired を立てる */
+  markAssetFinal: (id: string, impact: RevisionImpact, note?: string) => void;
+  /** 再実装作業の完了 */
+  markAssetReworkDone: (id: string) => void;
+
+  // Cue
   updateSoundCue: (id: string, patch: Partial<SoundCue>) => void;
+  addSoundCue: (
+    productionId: string,
+    init?: Partial<Omit<SoundCue, "id" | "productionId">>
+  ) => SoundCue;
+  removeSoundCue: (id: string) => void;
   updateLampCue: (id: string, patch: Partial<LampCue>) => void;
-  updateProduction: (id: string, patch: Partial<Production>) => void;
+  addLampCue: (
+    productionId: string,
+    init?: Partial<Omit<LampCue, "id" | "productionId">>
+  ) => LampCue;
+  removeLampCue: (id: string) => void;
+
+  // 映像実装タスク (要件定義)
+  addVideoTask: (
+    productionId: string,
+    init?: Partial<Omit<VideoTask, "id" | "productionId" | "order">>
+  ) => VideoTask;
+  updateVideoTask: (id: string, patch: Partial<VideoTask>) => void;
+  removeVideoTask: (id: string) => void;
+
+  resetData: () => void;
 }
 
 const nowIso = () => new Date().toISOString();
@@ -122,9 +164,30 @@ export const useStore = create<State>()(
       setHydrated: (v) => set({ hydrated: v }),
       setCurrentUser: (id) => set({ currentUserId: id }),
 
-      createProject: (input) => {
-        const project: Project = {
-          id: `p-${nanoid(6)}`,
+      // === ユーザ ===========================================================
+      createUser: (input) => {
+        const existingHues = get().users.map((u) => u.avatarHue);
+        const autoHue =
+          input.avatarHue ??
+          ((existingHues.length * 47 + Math.floor(Math.random() * 30)) % 360);
+        const user: User = {
+          id: `u-${nanoid(6)}`,
+          avatarHue: autoHue,
+          ...input,
+        };
+        set((s) => ({ users: [...s.users, user] }));
+        return user;
+      },
+
+      updateUser: (id, patch) =>
+        set((s) => ({
+          users: s.users.map((u) => (u.id === id ? { ...u, ...patch } : u)),
+        })),
+
+      // === 機種 =============================================================
+      createMachine: (input) => {
+        const machine: Machine = {
+          id: `m-${nanoid(6)}`,
           createdAt: nowIso(),
           memberIds: input.memberIds ?? [get().currentUserId],
           ...input,
@@ -134,219 +197,92 @@ export const useStore = create<State>()(
           pushActivity(
             { activities },
             {
-              type: "project_created",
+              type: "machine_created",
               actorId: get().currentUserId,
-              projectId: project.id,
-              message: `プロジェクト「${project.name}」を作成しました`,
+              machineId: machine.id,
+              message: `機種「${machine.name}」を登録しました`,
             }
           );
-          return { projects: [...s.projects, project], activities };
+          return { machines: [...s.machines, machine], activities };
         });
-        return project;
+        return machine;
       },
 
-      updateProject: (id, patch) =>
+      updateMachine: (id, patch) =>
         set((s) => ({
-          projects: s.projects.map((p) =>
-            p.id === id ? { ...p, ...patch } : p
+          machines: s.machines.map((m) =>
+            m.id === id ? { ...m, ...patch } : m
           ),
         })),
 
-      archiveProject: (id, archived) =>
-        set((s) => ({
-          projects: s.projects.map((p) =>
-            p.id === id ? { ...p, archived } : p
-          ),
-        })),
-
-      createIssue: (input) => {
-        const projectIssues = get().issues.filter(
-          (i) => i.projectId === input.projectId
-        );
-        const number =
-          projectIssues.reduce((max, i) => Math.max(max, i.number), 0) + 1;
-        const issue: Issue = {
-          id: `i-${nanoid(6)}`,
-          number,
-          createdAt: nowIso(),
-          updatedAt: nowIso(),
-          doneRatio: input.doneRatio ?? 0,
-          tags: input.tags ?? [],
-          ...input,
-        };
+      createMachineMember: (machineId, userId) =>
         set((s) => {
+          const machine = s.machines.find((m) => m.id === machineId);
+          if (!machine || machine.memberIds.includes(userId)) return s;
+          const machines = s.machines.map((m) =>
+            m.id === machineId
+              ? { ...m, memberIds: [...m.memberIds, userId] }
+              : m
+          );
+          const user = s.users.find((u) => u.id === userId);
           const activities = [...s.activities];
           pushActivity(
             { activities },
             {
-              type: "issue_created",
+              type: "member_assigned",
               actorId: get().currentUserId,
-              projectId: issue.projectId,
-              issueId: issue.id,
-              message: `「${issue.subject}」を作成しました`,
+              machineId,
+              message: `「${user?.name ?? "メンバー"}」を機種「${machine.name}」にアサインしました`,
             }
           );
-          return { issues: [...s.issues, issue], activities };
-        });
-        return issue;
-      },
-
-      updateIssue: (id, patch) =>
-        set((s) => {
-          const prev = s.issues.find((i) => i.id === id);
-          if (!prev) return s;
-          const next: Issue = {
-            ...prev,
-            ...patch,
-            updatedAt: nowIso(),
-          };
-          const issues = s.issues.map((i) => (i.id === id ? next : i));
-          const changelogs = [...s.changelogs];
-          const activities = [...s.activities];
-
-          const trackedFields: (keyof Issue)[] = [
-            "status",
-            "priority",
-            "assigneeId",
-            "doneRatio",
-            "tracker",
-            "subject",
-            "dueDate",
-            "startDate",
-          ];
-          for (const f of trackedFields) {
-            if (patch[f] !== undefined && prev[f] !== next[f]) {
-              changelogs.push({
-                id: `cl-${nanoid(6)}`,
-                issueId: id,
-                authorId: get().currentUserId,
-                field: String(f),
-                from: prev[f] === null || prev[f] === undefined
-                  ? null
-                  : String(prev[f]),
-                to: next[f] === null || next[f] === undefined
-                  ? null
-                  : String(next[f]),
-                createdAt: nowIso(),
-              });
-            }
-          }
-          if (
-            patch.status &&
-            (patch.status === "closed" || patch.status === "resolved") &&
-            prev.status !== patch.status
-          ) {
-            pushActivity(
-              { activities },
-              {
-                type: "issue_closed",
-                actorId: get().currentUserId,
-                projectId: next.projectId,
-                issueId: next.id,
-                message: `「${next.subject}」のステータスを更新しました`,
-              }
-            );
-          } else if (Object.keys(patch).length > 0) {
-            pushActivity(
-              { activities },
-              {
-                type: "issue_updated",
-                actorId: get().currentUserId,
-                projectId: next.projectId,
-                issueId: next.id,
-                message: `「${next.subject}」を更新しました`,
-              }
-            );
-          }
-
-          return { issues, changelogs, activities };
+          return { machines, activities };
         }),
 
-      deleteIssue: (id) =>
+      removeMachineMember: (machineId, userId) =>
         set((s) => ({
-          issues: s.issues.filter((i) => i.id !== id),
-          comments: s.comments.filter((c) => c.issueId !== id),
-          changelogs: s.changelogs.filter((c) => c.issueId !== id),
+          machines: s.machines.map((m) =>
+            m.id === machineId
+              ? { ...m, memberIds: m.memberIds.filter((id) => id !== userId) }
+              : m
+          ),
         })),
 
-      addComment: (issueId, body) => {
-        const trimmed = body.trim();
-        if (!trimmed) return null;
-        const comment: Comment = {
-          id: `c-${nanoid(6)}`,
-          issueId,
-          authorId: get().currentUserId,
-          body: trimmed,
-          createdAt: nowIso(),
-        };
+      // === 演出 / 工程 ======================================================
+      updateProduction: (id, patch) =>
         set((s) => {
+          const prev = s.productions.find((p) => p.id === id);
+          if (!prev) return s;
+          const next = { ...prev, ...patch, updatedAt: nowIso() };
+          const productions = s.productions.map((p) =>
+            p.id === id ? next : p
+          );
           const activities = [...s.activities];
-          const issue = s.issues.find((i) => i.id === issueId);
-          if (issue) {
+          if (patch.state && patch.state !== prev.state) {
             pushActivity(
               { activities },
               {
-                type: "comment_added",
+                type: "production_updated",
                 actorId: get().currentUserId,
-                projectId: issue.projectId,
-                issueId: issue.id,
-                message: `「${issue.subject}」にコメントしました`,
+                machineId: next.machineId,
+                productionId: next.id,
+                message: `演出「${next.name}」のステータスを変更しました`,
               }
             );
           }
-          return { comments: [...s.comments, comment], activities };
-        });
-        return comment;
-      },
+          return { productions, activities };
+        }),
 
-      upsertWikiPage: (page) => {
-        const existing = get().wikiPages.find(
-          (w) => w.projectId === page.projectId && w.slug === page.slug
-        );
-        const next: WikiPage = existing
-          ? { ...existing, ...page, updatedAt: nowIso() }
-          : { ...page, id: `w-${nanoid(6)}`, updatedAt: nowIso() };
-        set((s) => {
-          const wikiPages = existing
-            ? s.wikiPages.map((w) => (w.id === existing.id ? next : w))
-            : [...s.wikiPages, next];
-          const activities = [...s.activities];
-          pushActivity(
-            { activities },
-            {
-              type: "wiki_updated",
-              actorId: get().currentUserId,
-              projectId: page.projectId,
-              message: `Wikiページ「${page.title}」を更新しました`,
-            }
-          );
-          return { wikiPages, activities };
-        });
-        return next;
-      },
-
-      logTime: (entry) => {
-        const created: TimeEntry = {
-          id: `t-${nanoid(6)}`,
-          createdAt: nowIso(),
-          ...entry,
-        };
-        set((s) => ({ timeEntries: [...s.timeEntries, created] }));
-        return created;
-      },
-
-      // === Pachinko domain ====================================================
       updatePhase: (id, patch) =>
         set((s) => {
           const phases = s.phases.map((p) =>
             p.id === id ? { ...p, ...patch } : p
           );
-          // 依存関係を再評価し、blocked / todo を切り替え
           const target = phases.find((p) => p.id === id);
           if (!target) return { phases };
           const productionPhases = phases.filter(
             (p) => p.productionId === target.productionId
           );
+          // 依存関係を再評価し、blocked / todo を切り替え
           for (const ph of productionPhases) {
             const deps = PHASE_DEPENDENCIES[ph.type];
             const allDepsDone = deps.every((d) => {
@@ -357,14 +293,33 @@ export const useStore = create<State>()(
               ph.state = "todo";
             } else if (
               !allDepsDone &&
-              (ph.state === "todo" || ph.state === "in_progress" || ph.state === "review")
+              (ph.state === "todo" ||
+                ph.state === "in_progress" ||
+                ph.state === "review")
             ) {
               if (ph.state === "todo") ph.state = "blocked";
             }
           }
-          return { phases: phases.map((p) => ({ ...p })) };
+          const production = s.productions.find(
+            (p) => p.id === target.productionId
+          );
+          const activities = [...s.activities];
+          if (patch.state && production) {
+            pushActivity(
+              { activities },
+              {
+                type: "phase_updated",
+                actorId: get().currentUserId,
+                machineId: production.machineId,
+                productionId: production.id,
+                message: `演出「${production.name}」の工程を更新しました`,
+              }
+            );
+          }
+          return { phases: phases.map((p) => ({ ...p })), activities };
         }),
 
+      // === Vコンテ シーン ===================================================
       updateScene: (id, patch) =>
         set((s) => ({
           scenes: s.scenes.map((sc) =>
@@ -379,7 +334,8 @@ export const useStore = create<State>()(
         const order = existing.length + 1;
         const last = existing.at(-1);
         const startSec = last ? last.endSec : 0;
-        const endSec = startSec + (init?.endSec ? init.endSec - (init.startSec ?? 0) : 3);
+        const endSec =
+          startSec + (init?.endSec ? init.endSec - (init.startSec ?? 0) : 3);
         const scene: StoryboardScene = {
           id: `sc-${nanoid(6)}`,
           productionId,
@@ -400,6 +356,7 @@ export const useStore = create<State>()(
       removeScene: (id) =>
         set((s) => ({ scenes: s.scenes.filter((sc) => sc.id !== id) })),
 
+      // === アセット =========================================================
       updateAsset: (id, patch) =>
         set((s) => ({
           assets: s.assets.map((a) =>
@@ -408,7 +365,13 @@ export const useStore = create<State>()(
                   ...a,
                   ...patch,
                   updatedAt:
-                    patch.state || patch.version || patch.fileLabel
+                    patch.state ||
+                    patch.version ||
+                    patch.fileLabel ||
+                    patch.dataKind ||
+                    patch.revisionImpact ||
+                    patch.name ||
+                    patch.category
                       ? nowIso()
                       : a.updatedAt,
                 }
@@ -416,12 +379,170 @@ export const useStore = create<State>()(
           ),
         })),
 
+      addAsset: (productionId, init) => {
+        const production = get().productions.find((p) => p.id === productionId);
+        if (!production) return null;
+        const existing = get().assets.filter(
+          (a) => a.productionId === productionId
+        );
+        const asset: Asset = {
+          id: `as-${nanoid(6)}`,
+          machineId: production.machineId,
+          productionId,
+          category: init?.category ?? "background",
+          name: init?.name ?? "新規アセット",
+          fileLabel: init?.fileLabel ?? "",
+          authorId: init?.authorId ?? get().currentUserId,
+          state: init?.state ?? "wip",
+          version: init?.version ?? 1,
+          updatedAt: nowIso(),
+          thumbHue: init?.thumbHue ?? Math.floor(Math.random() * 360),
+          dataKind: init?.dataKind ?? "temp",
+          revisionImpact: init?.revisionImpact ?? "unknown",
+          finalDueDate: init?.finalDueDate,
+          finalReceivedAt: init?.finalReceivedAt,
+          reworkRequired: init?.reworkRequired,
+          reworkDoneAt: init?.reworkDoneAt,
+        };
+        set((s) => ({ assets: [...s.assets, asset] }));
+        return asset;
+      },
+
+      removeAsset: (id) =>
+        set((s) => ({ assets: s.assets.filter((a) => a.id !== id) })),
+
+      markAssetFinal: (id, impact, note) =>
+        set((s) => {
+          const asset = s.assets.find((a) => a.id === id);
+          if (!asset) return s;
+          const next: Asset = {
+            ...asset,
+            dataKind: "final",
+            revisionImpact: impact,
+            finalReceivedAt: nowIso(),
+            reworkRequired: impact === "rework",
+            updatedAt: nowIso(),
+            version: asset.version + 1,
+          };
+          const assets = s.assets.map((a) => (a.id === id ? next : a));
+
+          // 再実装ありの場合、後続実装工程を done/review から in_progress に巻き戻す
+          let phases = s.phases;
+          const reopenedTypes: PhaseType[] = [];
+          if (impact === "rework" && asset.productionId) {
+            phases = s.phases.map((ph) => {
+              if (ph.productionId !== asset.productionId) return ph;
+              if (!REWORK_REOPEN_PHASES.includes(ph.type)) return ph;
+              if (ph.state === "done" || ph.state === "review") {
+                reopenedTypes.push(ph.type);
+                return {
+                  ...ph,
+                  state: "in_progress" as const,
+                  completedAt: undefined,
+                };
+              }
+              return ph;
+            });
+          }
+
+          const activities = [...s.activities];
+          const production = asset.productionId
+            ? s.productions.find((p) => p.id === asset.productionId)
+            : null;
+          const machineId = production?.machineId ?? asset.machineId;
+          const impactLabel =
+            impact === "rework"
+              ? "再実装あり"
+              : impact === "swap"
+                ? "差し替えのみ"
+                : "影響度未確定";
+          pushActivity(
+            { activities },
+            {
+              type: "asset_received_final",
+              actorId: get().currentUserId,
+              machineId,
+              productionId: production?.id,
+              assetId: asset.id,
+              message: `本データ受領: 「${asset.name}」(${impactLabel})${note ? ` — ${note}` : ""}`,
+            }
+          );
+          if (reopenedTypes.length > 0 && production) {
+            const labels = reopenedTypes
+              .map((t) => PHASE_LABEL[t])
+              .join(" / ");
+            pushActivity(
+              { activities },
+              {
+                type: "phase_updated",
+                actorId: get().currentUserId,
+                machineId,
+                productionId: production.id,
+                message: `本データ「${asset.name}」受領により、${labels} を実装中に戻しました`,
+              }
+            );
+          }
+          return { assets, phases, activities };
+        }),
+
+      markAssetReworkDone: (id) =>
+        set((s) => {
+          const asset = s.assets.find((a) => a.id === id);
+          if (!asset) return s;
+          const assets = s.assets.map((a) =>
+            a.id === id
+              ? {
+                  ...a,
+                  reworkRequired: false,
+                  reworkDoneAt: nowIso(),
+                  updatedAt: nowIso(),
+                }
+              : a
+          );
+          const production = asset.productionId
+            ? s.productions.find((p) => p.id === asset.productionId)
+            : null;
+          const machineId = production?.machineId ?? asset.machineId;
+          const activities = [...s.activities];
+          pushActivity(
+            { activities },
+            {
+              type: "asset_rework_done",
+              actorId: get().currentUserId,
+              machineId,
+              productionId: production?.id,
+              assetId: asset.id,
+              message: `「${asset.name}」の再実装を完了しました`,
+            }
+          );
+          return { assets, activities };
+        }),
+
+      // === Cue ==============================================================
       updateSoundCue: (id, patch) =>
         set((s) => ({
           soundCues: s.soundCues.map((c) =>
             c.id === id ? { ...c, ...patch } : c
           ),
         })),
+
+      addSoundCue: (productionId, init) => {
+        const cue: SoundCue = {
+          id: `sc-${nanoid(6)}`,
+          productionId,
+          sceneId: init?.sceneId,
+          type: init?.type ?? "bgm",
+          name: init?.name ?? "新規サウンドCue",
+          state: init?.state ?? "wip",
+          assigneeId: init?.assigneeId ?? null,
+          note: init?.note ?? "",
+        };
+        set((s) => ({ soundCues: [...s.soundCues, cue] }));
+        return cue;
+      },
+
+      removeSoundCue: (id) =>
+        set((s) => ({ soundCues: s.soundCues.filter((c) => c.id !== id) })),
 
       updateLampCue: (id, patch) =>
         set((s) => ({
@@ -430,22 +551,104 @@ export const useStore = create<State>()(
           ),
         })),
 
-      updateProduction: (id, patch) =>
-        set((s) => ({
-          productions: s.productions.map((p) =>
-            p.id === id ? { ...p, ...patch, updatedAt: nowIso() } : p
-          ),
-        })),
+      addLampCue: (productionId, init) => {
+        const cue: LampCue = {
+          id: `lc-${nanoid(6)}`,
+          productionId,
+          sceneId: init?.sceneId,
+          name: init?.name ?? "新規ランプCue",
+          pattern: init?.pattern ?? "fade",
+          colors: init?.colors ?? ["#f59e0b", "#ef4444"],
+          state: init?.state ?? "wip",
+          assigneeId: init?.assigneeId ?? null,
+          note: init?.note ?? "",
+        };
+        set((s) => ({ lampCues: [...s.lampCues, cue] }));
+        return cue;
+      },
+
+      removeLampCue: (id) =>
+        set((s) => ({ lampCues: s.lampCues.filter((c) => c.id !== id) })),
+
+      // === 映像実装タスク ===================================================
+      addVideoTask: (productionId, init) => {
+        const existing = get().videoTasks.filter(
+          (t) => t.productionId === productionId
+        );
+        const order = existing.length + 1;
+        const task: VideoTask = {
+          id: `vt-${nanoid(6)}`,
+          productionId,
+          order,
+          name: init?.name ?? `タスク ${order}`,
+          description: init?.description ?? "",
+          estimatedHours: init?.estimatedHours ?? 0,
+          actualHours: init?.actualHours,
+          assigneeId: init?.assigneeId ?? null,
+          state: init?.state ?? "todo",
+        };
+        set((s) => {
+          const videoTasks = [...s.videoTasks, task];
+          const phases = syncVideoPhaseHours(s.phases, videoTasks, productionId);
+          return { videoTasks, phases };
+        });
+        return task;
+      },
+
+      updateVideoTask: (id, patch) =>
+        set((s) => {
+          const videoTasks = s.videoTasks.map((t) =>
+            t.id === id ? { ...t, ...patch } : t
+          );
+          const target = s.videoTasks.find((t) => t.id === id);
+          const phases = target
+            ? syncVideoPhaseHours(s.phases, videoTasks, target.productionId)
+            : s.phases;
+          return { videoTasks, phases };
+        }),
+
+      removeVideoTask: (id) =>
+        set((s) => {
+          const removed = s.videoTasks.find((t) => t.id === id);
+          const filtered = s.videoTasks.filter((t) => t.id !== id);
+          if (!removed) return { videoTasks: filtered };
+          // 同 production の order を振り直す
+          const renumbered = filtered.map((t) => {
+            if (t.productionId !== removed.productionId) return t;
+            const peers = filtered
+              .filter((p) => p.productionId === removed.productionId)
+              .sort((a, b) => a.order - b.order);
+            const idx = peers.findIndex((p) => p.id === t.id);
+            return idx >= 0 ? { ...t, order: idx + 1 } : t;
+          });
+          const phases = syncVideoPhaseHours(
+            s.phases,
+            renumbered,
+            removed.productionId
+          );
+          return { videoTasks: renumbered, phases };
+        }),
 
       resetData: () => set({ ...initialState, hydrated: true }),
     }),
     {
       name: "redmine-store",
-      version: 1,
+      version: 5,
       partialize: ({ hydrated: _h, ...rest }) => rest,
+      migrate: (persisted, version) => {
+        // v1〜v4 (videoTasks 未対応 / video phase 未同期) は破棄して再シード。
+        if (!persisted || typeof persisted !== "object") return persisted;
+        if (version < 5) {
+          return undefined as unknown;
+        }
+        return persisted;
+      },
       onRehydrateStorage: () => (state) => {
         state?.setHydrated(true);
       },
     }
   )
 );
+
+// 未使用の型 import を保持 (将来用)
+export type { ActivityType };

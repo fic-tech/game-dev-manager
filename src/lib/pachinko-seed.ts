@@ -9,6 +9,7 @@ import type {
   SoundCue,
   StoryboardScene,
   User,
+  VideoTask,
 } from "./types";
 import { PHASE_DEPENDENCIES, PHASE_ORDER } from "./labels";
 
@@ -179,6 +180,12 @@ interface ProductionInput {
     authorId: string;
     state: Asset["state"];
     version: number;
+    dataKind?: Asset["dataKind"];
+    revisionImpact?: Asset["revisionImpact"];
+    finalDueDays?: number;
+    finalReceivedDays?: number;
+    reworkRequired?: boolean;
+    reworkDoneDays?: number;
   }>;
   soundCues: Array<{
     type: SoundCue["type"];
@@ -269,6 +276,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des2",
         state: "approved",
         version: 4,
+        dataKind: "final",
+        revisionImpact: "swap",
+        finalReceivedDays: -5,
       },
       {
         category: "effect",
@@ -277,6 +287,10 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des1",
         state: "approved",
         version: 6,
+        dataKind: "final",
+        revisionImpact: "rework",
+        finalReceivedDays: -2,
+        reworkRequired: true,
       },
       {
         category: "effect",
@@ -285,6 +299,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des2",
         state: "review",
         version: 2,
+        dataKind: "temp",
+        revisionImpact: "unknown",
+        finalDueDays: 5,
       },
       {
         category: "bgm",
@@ -293,6 +310,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-snd1",
         state: "review",
         version: 3,
+        dataKind: "temp",
+        revisionImpact: "swap",
+        finalDueDays: 3,
       },
       {
         category: "se",
@@ -301,6 +321,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-snd1",
         state: "approved",
         version: 2,
+        dataKind: "final",
+        revisionImpact: "swap",
+        finalReceivedDays: -8,
       },
     ],
     soundCues: [
@@ -415,6 +438,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des1",
         state: "review",
         version: 3,
+        dataKind: "temp",
+        revisionImpact: "rework",
+        finalDueDays: 10,
       },
       {
         category: "character",
@@ -423,6 +449,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des2",
         state: "wip",
         version: 2,
+        dataKind: "temp",
+        revisionImpact: "unknown",
+        finalDueDays: 14,
       },
       {
         category: "background",
@@ -431,6 +460,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des2",
         state: "wip",
         version: 1,
+        dataKind: "temp",
+        revisionImpact: "swap",
+        finalDueDays: 7,
       },
       {
         category: "effect",
@@ -439,6 +471,8 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des1",
         state: "wip",
         version: 1,
+        dataKind: "temp",
+        revisionImpact: "unknown",
       },
       {
         category: "bgm",
@@ -447,6 +481,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-snd1",
         state: "wip",
         version: 1,
+        dataKind: "temp",
+        revisionImpact: "unknown",
+        finalDueDays: 21,
       },
     ],
     soundCues: [
@@ -527,6 +564,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des1",
         state: "approved",
         version: 5,
+        dataKind: "final",
+        revisionImpact: "swap",
+        finalReceivedDays: -10,
       },
       {
         category: "effect",
@@ -535,6 +575,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des2",
         state: "approved",
         version: 3,
+        dataKind: "final",
+        revisionImpact: "swap",
+        finalReceivedDays: -7,
       },
       {
         category: "se",
@@ -543,6 +586,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-snd1",
         state: "approved",
         version: 4,
+        dataKind: "final",
+        revisionImpact: "swap",
+        finalReceivedDays: -12,
       },
     ],
     soundCues: [
@@ -614,6 +660,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des1",
         state: "approved",
         version: 2,
+        dataKind: "final",
+        revisionImpact: "swap",
+        finalReceivedDays: -20,
       },
     ],
     soundCues: [
@@ -707,6 +756,10 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des2",
         state: "review",
         version: 4,
+        dataKind: "final",
+        revisionImpact: "rework",
+        finalReceivedDays: -1,
+        reworkRequired: true,
       },
       {
         category: "background",
@@ -715,6 +768,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des2",
         state: "wip",
         version: 1,
+        dataKind: "temp",
+        revisionImpact: "unknown",
+        finalDueDays: 9,
       },
       {
         category: "bgm",
@@ -723,6 +779,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-snd2",
         state: "wip",
         version: 1,
+        dataKind: "temp",
+        revisionImpact: "rework",
+        finalDueDays: 14,
       },
     ],
     soundCues: [
@@ -812,6 +871,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des2",
         state: "approved",
         version: 3,
+        dataKind: "final",
+        revisionImpact: "swap",
+        finalReceivedDays: -4,
       },
       {
         category: "se",
@@ -820,6 +882,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-snd2",
         state: "approved",
         version: 2,
+        dataKind: "final",
+        revisionImpact: "swap",
+        finalReceivedDays: -3,
       },
     ],
     soundCues: [
@@ -958,6 +1023,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des1",
         state: "review",
         version: 2,
+        dataKind: "temp",
+        revisionImpact: "unknown",
+        finalDueDays: 30,
       },
       {
         category: "character",
@@ -966,6 +1034,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des1",
         state: "wip",
         version: 1,
+        dataKind: "temp",
+        revisionImpact: "rework",
+        finalDueDays: 42,
       },
       {
         category: "effect",
@@ -974,6 +1045,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des1",
         state: "wip",
         version: 1,
+        dataKind: "temp",
+        revisionImpact: "swap",
+        finalDueDays: 28,
       },
     ],
     soundCues: [
@@ -1047,6 +1121,9 @@ const PRODUCTION_INPUT: ProductionInput[] = [
         authorId: "pu-des1",
         state: "review",
         version: 2,
+        dataKind: "final",
+        revisionImpact: "swap",
+        finalReceivedDays: -1,
       },
     ],
     soundCues: [
@@ -1080,6 +1157,7 @@ export function buildPachinkoSeed(): {
   assets: Asset[];
   soundCues: SoundCue[];
   lampCues: LampCue[];
+  videoTasks: VideoTask[];
 } {
   const productions: Production[] = [];
   const phases: Phase[] = [];
@@ -1087,6 +1165,7 @@ export function buildPachinkoSeed(): {
   const assets: Asset[] = [];
   const soundCues: SoundCue[] = [];
   const lampCues: LampCue[] = [];
+  const videoTasks: VideoTask[] = [];
 
   for (const input of PRODUCTION_INPUT) {
     productions.push({
@@ -1172,6 +1251,17 @@ export function buildPachinkoSeed(): {
         version: a.version,
         updatedAt: iso(-day * (idx + 1)),
         thumbHue: ((idx + 3) * 47) % 360,
+        dataKind: a.dataKind ?? "temp",
+        revisionImpact: a.revisionImpact ?? "unknown",
+        finalDueDate:
+          a.finalDueDays !== undefined ? date(day * a.finalDueDays) : undefined,
+        finalReceivedAt:
+          a.finalReceivedDays !== undefined
+            ? iso(day * a.finalReceivedDays)
+            : undefined,
+        reworkRequired: a.reworkRequired,
+        reworkDoneAt:
+          a.reworkDoneDays !== undefined ? iso(day * a.reworkDoneDays) : undefined,
       });
     });
 
@@ -1201,7 +1291,65 @@ export function buildPachinkoSeed(): {
         note: c.note,
       });
     });
+
+    // VideoTask: 最初の演出にだけ要件サンプルを生成
+    const videoAssignee = input.phaseAssignees.video ?? null;
+    const seedTasks: Array<Pick<VideoTask, "name" | "description" | "estimatedHours" | "state"> & { actualHours?: number }> =
+      input.id === PRODUCTION_INPUT[0]?.id
+        ? [
+            {
+              name: "シーン遷移タイミング設計",
+              description: "Vコンテに合わせてシーン切替の尺を確定",
+              estimatedHours: 4,
+              state: "done",
+              actualHours: 5,
+            },
+            {
+              name: "リーチ突入カットイン実装",
+              description: "演出フローエンジンへの組み込み",
+              estimatedHours: 8,
+              state: "in_progress",
+              actualHours: 3,
+            },
+            {
+              name: "確定パターン実装",
+              description: "リーチ確定演出の分岐実装",
+              estimatedHours: 6,
+              state: "todo",
+            },
+          ]
+        : [];
+    seedTasks.forEach((t, idx) => {
+      videoTasks.push({
+        id: `vt-${input.id}-${idx + 1}`,
+        productionId: input.id,
+        order: idx + 1,
+        name: t.name,
+        description: t.description,
+        estimatedHours: t.estimatedHours,
+        actualHours: t.actualHours,
+        assigneeId: videoAssignee,
+        state: t.state,
+      });
+    });
   }
 
-  return { productions, phases, scenes, assets, soundCues, lampCues };
+  // video phase の予実工数を VideoTask 合計に同期
+  for (const production of productions) {
+    const tasks = videoTasks.filter((t) => t.productionId === production.id);
+    if (tasks.length === 0) continue;
+    const est = tasks.reduce((s, t) => s + (t.estimatedHours || 0), 0);
+    const hasActual = tasks.some((t) => t.actualHours !== undefined);
+    const act = hasActual
+      ? tasks.reduce((s, t) => s + (t.actualHours ?? 0), 0)
+      : undefined;
+    for (const ph of phases) {
+      if (ph.productionId === production.id && ph.type === "video") {
+        ph.estimatedHours = est;
+        ph.actualHours = act;
+      }
+    }
+  }
+
+  return { productions, phases, scenes, assets, soundCues, lampCues, videoTasks };
 }

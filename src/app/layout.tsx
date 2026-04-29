@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { AppShell } from "@/components/app-shell";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -16,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Forge — モダンなプロジェクト管理",
+  title: "Forge — 遊技機 演出開発ワークスペース",
   description:
-    "Redmine ライクな機能を備えた、スタイリッシュなプロジェクト管理ツール",
+    "パチンコ・パチスロの演出制作を一元管理する、機種・工程ベースの開発ツール",
 };
 
 export default function RootLayout({
@@ -33,9 +32,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full bg-background text-foreground">
-        <TooltipProvider delayDuration={150}>
-          <AppShell>{children}</AppShell>
-        </TooltipProvider>
+        <TooltipProvider delayDuration={150}>{children}</TooltipProvider>
         <Toaster richColors position="bottom-right" />
       </body>
     </html>

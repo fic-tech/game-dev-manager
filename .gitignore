@@ -43,3 +43,10 @@ next-env.d.ts
 # playwright artifacts
 .playwright-mcp/
 /*.png
+
+# sqlite database (runtime data)
+/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

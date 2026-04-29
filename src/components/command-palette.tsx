@@ -6,14 +6,12 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   Search,
   Hash,
-  FolderKanban,
-  BookText,
   Users,
   Cpu,
   Sparkles,
   Boxes,
 } from "lucide-react";
-import { useStore } from "@/lib/store";
+import { useWorkspace } from "@/components/workspace-provider";
 import { cn } from "@/lib/utils";
 
 interface Item {
@@ -22,15 +20,7 @@ interface Item {
   hint?: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  group:
-    | "機種"
-    | "演出"
-    | "素材"
-    | "プロジェクト"
-    | "チケット"
-    | "Wiki"
-    | "メンバー"
-    | "移動";
+  group: "機種" | "演出" | "素材" | "メンバー" | "移動";
 }
 
 export function CommandPalette({
@@ -41,13 +31,7 @@ export function CommandPalette({
   onOpenChange: (v: boolean) => void;
 }) {
   const router = useRouter();
-  const projects = useStore((s) => s.projects);
-  const issues = useStore((s) => s.issues);
-  const wikiPages = useStore((s) => s.wikiPages);
-  const users = useStore((s) => s.users);
-  const machines = useStore((s) => s.machines);
-  const productions = useStore((s) => s.productions);
-  const assetsAll = useStore((s) => s.assets);
+  const { users, machines, productions, assets: assetsAll } = useWorkspace();
   const [q, setQ] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
 
@@ -61,15 +45,11 @@ export function CommandPalette({
   const items = useMemo<Item[]>(() => {
     const navItems: Item[] = [
       { id: "n-dash", label: "ダッシュボード", href: "/", icon: Hash, group: "移動" },
-      { id: "n-mywork", label: "マイ・ワーク", href: "/my-work", icon: Hash, group: "移動" },
       { id: "n-machines", label: "機種", href: "/machines", icon: Hash, group: "移動" },
       { id: "n-prod", label: "演出", href: "/productions", icon: Hash, group: "移動" },
       { id: "n-assets", label: "素材ライブラリ", href: "/assets", icon: Hash, group: "移動" },
-      { id: "n-issues", label: "チケット一覧", href: "/issues", icon: Hash, group: "移動" },
-      { id: "n-board", label: "ボード", href: "/board", icon: Hash, group: "移動" },
-      { id: "n-cal", label: "カレンダー", href: "/calendar", icon: Hash, group: "移動" },
-      { id: "n-gantt", label: "ガント", href: "/gantt", icon: Hash, group: "移動" },
-      { id: "n-act", label: "アクティビティ", href: "/activity", icon: Hash, group: "移動" },
+      { id: "n-members", label: "メンバー", href: "/members", icon: Hash, group: "移動" },
+      { id: "n-settings", label: "設定", href: "/settings", icon: Hash, group: "移動" },
     ];
     const all: Item[] = [
       ...machines.map<Item>((m) => ({
@@ -96,36 +76,6 @@ export function CommandPalette({
         icon: Boxes,
         group: "素材",
       })),
-      ...projects.map<Item>((p) => ({
-        id: p.id,
-        label: p.name,
-        hint: p.identifier,
-        href: `/projects/${p.identifier}`,
-        icon: FolderKanban,
-        group: "プロジェクト",
-      })),
-      ...issues.slice(0, 200).map<Item>((i) => {
-        const p = projects.find((p) => p.id === i.projectId);
-        return {
-          id: i.id,
-          label: i.subject,
-          hint: p ? `#${p.identifier}-${i.number}` : `#${i.number}`,
-          href: `/issues/${i.id}`,
-          icon: Hash,
-          group: "チケット",
-        };
-      }),
-      ...wikiPages.map<Item>((w) => {
-        const p = projects.find((p) => p.id === w.projectId);
-        return {
-          id: w.id,
-          label: w.title,
-          hint: p?.identifier,
-          href: p ? `/projects/${p.identifier}/wiki/${w.slug}` : "/wiki",
-          icon: BookText,
-          group: "Wiki",
-        };
-      }),
       ...users.map<Item>((u) => ({
         id: u.id,
         label: u.name,
@@ -145,7 +95,7 @@ export function CommandPalette({
           it.hint?.toLowerCase().includes(ql)
       )
       .slice(0, 50);
-  }, [q, projects, issues, wikiPages, users, machines, productions, assetsAll]);
+  }, [q, users, machines, productions, assetsAll]);
 
   useEffect(() => {
     setActiveIdx(0);
@@ -190,7 +140,7 @@ export function CommandPalette({
                 }
               }
             }}
-            placeholder="プロジェクト・チケット・メンバーを検索…"
+            placeholder="機種・演出・素材・メンバーを検索…"
             className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none"
           />
           <kbd className="hidden sm:inline rounded border border-border bg-muted px-1.5 py-0.5 text-[10px]">

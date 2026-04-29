@@ -1,90 +1,23 @@
 import type {
-  IssuePriority,
-  IssueStatus,
-  IssueTracker,
-} from "./types";
-
-export const STATUS_LABEL: Record<IssueStatus, string> = {
-  new: "新規",
-  in_progress: "進行中",
-  feedback: "フィードバック",
-  resolved: "解決",
-  closed: "完了",
-  rejected: "却下",
-};
-
-export const PRIORITY_LABEL: Record<IssuePriority, string> = {
-  low: "低",
-  normal: "通常",
-  high: "高",
-  urgent: "緊急",
-  immediate: "即時",
-};
-
-export const TRACKER_LABEL: Record<IssueTracker, string> = {
-  bug: "バグ",
-  feature: "機能",
-  support: "サポート",
-  task: "タスク",
-};
-
-export const STATUS_ORDER: IssueStatus[] = [
-  "new",
-  "in_progress",
-  "feedback",
-  "resolved",
-  "closed",
-  "rejected",
-];
-
-export const PRIORITY_ORDER: IssuePriority[] = [
-  "low",
-  "normal",
-  "high",
-  "urgent",
-  "immediate",
-];
-
-export const TRACKER_ORDER: IssueTracker[] = [
-  "feature",
-  "bug",
-  "task",
-  "support",
-];
-
-export const STATUS_COLOR: Record<IssueStatus, string> = {
-  new: "bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30",
-  in_progress: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30",
-  feedback: "bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30",
-  resolved: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30",
-  closed: "bg-zinc-500/15 text-zinc-300 ring-1 ring-zinc-500/30",
-  rejected: "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30",
-};
-
-export const PRIORITY_COLOR: Record<IssuePriority, string> = {
-  low: "text-slate-400",
-  normal: "text-sky-400",
-  high: "text-amber-400",
-  urgent: "text-orange-400",
-  immediate: "text-rose-400",
-};
-
-export const TRACKER_COLOR: Record<IssueTracker, string> = {
-  bug: "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30",
-  feature: "bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30",
-  support: "bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/30",
-  task: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30",
-};
-
-import type {
   AssetCategory,
+  AssetDataKind,
   AssetState,
   Discipline,
   PhaseState,
   PhaseType,
   ProductionCategory,
   ProductionState,
+  RevisionImpact,
+  Role,
+  VideoTaskState,
 } from "./types";
+
+export const ROLE_LABEL: Record<Role, string> = {
+  manager: "マネージャ",
+  developer: "開発",
+  reporter: "報告者",
+  viewer: "閲覧者",
+};
 
 export const DISCIPLINE_LABEL: Record<Discipline, string> = {
   director: "ディレクター",
@@ -242,4 +175,57 @@ export const ASSET_STATE_COLOR: Record<AssetState, string> = {
   wip: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30",
   review: "bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30",
   approved: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30",
+};
+
+export const DATA_KIND_LABEL: Record<AssetDataKind, string> = {
+  temp: "仮データ",
+  final: "本データ",
+};
+
+export const DATA_KIND_SHORT: Record<AssetDataKind, string> = {
+  temp: "仮",
+  final: "本",
+};
+
+export const DATA_KIND_COLOR: Record<AssetDataKind, string> = {
+  temp: "bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/40",
+  final: "bg-sky-500/15 text-sky-200 ring-1 ring-sky-500/40",
+};
+
+export const REVISION_IMPACT_LABEL: Record<RevisionImpact, string> = {
+  unknown: "影響度未確定",
+  swap: "差し替えのみ",
+  rework: "再実装あり",
+};
+
+export const REVISION_IMPACT_SHORT: Record<RevisionImpact, string> = {
+  unknown: "判定前",
+  swap: "差し替え",
+  rework: "要再実装",
+};
+
+export const REVISION_IMPACT_COLOR: Record<RevisionImpact, string> = {
+  unknown: "bg-zinc-500/15 text-zinc-300 ring-1 ring-zinc-500/30",
+  swap: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30",
+  rework: "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30",
+};
+
+export const REVISION_IMPACT_HINT: Record<RevisionImpact, string> = {
+  unknown: "プロジェクト初期は判断不能。実装が進むにつれて確定",
+  swap: "素材入れ替えのみで完了。ソフト工数ほぼゼロ",
+  rework: "タイミング・尺・構成変更あり。ソフト再実装が必要",
+};
+
+export const VIDEO_TASK_STATE_LABEL: Record<VideoTaskState, string> = {
+  todo: "未着手",
+  in_progress: "進行中",
+  review: "レビュー中",
+  done: "完了",
+};
+
+export const VIDEO_TASK_STATE_COLOR: Record<VideoTaskState, string> = {
+  todo: "bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30",
+  in_progress: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30",
+  review: "bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30",
+  done: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30",
 };

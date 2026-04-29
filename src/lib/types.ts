@@ -1,14 +1,6 @@
-export type IssueStatus =
-  | "new"
-  | "in_progress"
-  | "resolved"
-  | "feedback"
-  | "closed"
-  | "rejected";
-
-export type IssuePriority = "low" | "normal" | "high" | "urgent" | "immediate";
-
-export type IssueTracker = "bug" | "feature" | "support" | "task";
+// ============================================================================
+// 遊技機開発ワークスペース 型定義
+// ============================================================================
 
 export type Role = "manager" | "developer" | "reporter" | "viewer";
 
@@ -19,94 +11,6 @@ export interface User {
   avatarHue: number;
   role: Role;
   discipline?: Discipline;
-}
-
-export interface Project {
-  id: string;
-  identifier: string;
-  name: string;
-  description: string;
-  color: string;
-  createdAt: string;
-  startDate?: string;
-  endDate?: string;
-  memberIds: string[];
-  archived?: boolean;
-}
-
-export interface Comment {
-  id: string;
-  issueId: string;
-  authorId: string;
-  body: string;
-  createdAt: string;
-}
-
-export interface ChangeLog {
-  id: string;
-  issueId: string;
-  authorId: string;
-  field: string;
-  from: string | null;
-  to: string | null;
-  createdAt: string;
-}
-
-export interface Issue {
-  id: string;
-  projectId: string;
-  number: number;
-  subject: string;
-  description: string;
-  tracker: IssueTracker;
-  status: IssueStatus;
-  priority: IssuePriority;
-  authorId: string;
-  assigneeId: string | null;
-  parentId: string | null;
-  startDate?: string;
-  dueDate?: string;
-  estimatedHours?: number;
-  doneRatio: number;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface WikiPage {
-  id: string;
-  projectId: string;
-  slug: string;
-  title: string;
-  body: string;
-  updatedAt: string;
-  authorId: string;
-}
-
-export interface ActivityEntry {
-  id: string;
-  type:
-    | "issue_created"
-    | "issue_updated"
-    | "issue_closed"
-    | "comment_added"
-    | "wiki_updated"
-    | "project_created";
-  actorId: string;
-  projectId: string;
-  issueId?: string;
-  message: string;
-  createdAt: string;
-}
-
-export interface TimeEntry {
-  id: string;
-  issueId: string;
-  userId: string;
-  hours: number;
-  note: string;
-  spentOn: string;
-  createdAt: string;
 }
 
 // === 遊技機開発ドメイン =====================================================
@@ -165,6 +69,21 @@ export type AssetCategory =
 
 export type AssetState = "wip" | "review" | "approved";
 
+/**
+ * 素材種別。デザインデータは仮データとして提出されることがあり、後から本データに差し替わる。
+ * - temp: 仮データ。実装中だが本データ受領を待っている
+ * - final: 本データ受領済み
+ */
+export type AssetDataKind = "temp" | "final";
+
+/**
+ * 仮→本切り替え時のソフト側への影響度。プロジェクト初期は判断できないため unknown が初期値。
+ * - unknown: 影響度判定前
+ * - swap: 素材差し替えのみで完了する見込み (軽微)
+ * - rework: タイミング・尺・構成変更を伴い再実装工数が発生
+ */
+export type RevisionImpact = "unknown" | "swap" | "rework";
+
 export interface Machine {
   id: string;
   code: string;
@@ -205,6 +124,30 @@ export interface Phase {
   dueDate?: string;
   completedAt?: string;
   note: string;
+  /**
+   * 予実管理を行うかどうか。false の場合、外注や自社対応外として
+   * 予実工数の集計から除外し、UI 上も「対象外」として表示する。
+   * 未指定 (undefined) は true 扱い。
+   */
+  trackHours?: boolean;
+}
+
+export type VideoTaskState = "todo" | "in_progress" | "review" | "done";
+
+/**
+ * 映像実装の要件定義タスク。1つの演出 (video phase) 配下に複数定義し、
+ * タスクごとに見積/実績工数を持つ。
+ */
+export interface VideoTask {
+  id: string;
+  productionId: string;
+  order: number;
+  name: string;
+  description: string;
+  estimatedHours: number;
+  actualHours?: number;
+  assigneeId: string | null;
+  state: VideoTaskState;
 }
 
 export interface StoryboardScene {
@@ -233,6 +176,18 @@ export interface Asset {
   version: number;
   updatedAt: string;
   thumbHue: number;
+  /** 仮/本データ。デフォルトは temp */
+  dataKind: AssetDataKind;
+  /** 仮→本受領時のソフト側影響度。temp の段階でも事前評価として設定できる */
+  revisionImpact: RevisionImpact;
+  /** 本データ提出予定日 (デザイン側からの提出予定) */
+  finalDueDate?: string;
+  /** 本データ受領日時 */
+  finalReceivedAt?: string;
+  /** 本データ受領後、再実装作業が残っているか (rework + 未対応のみ true) */
+  reworkRequired?: boolean;
+  /** 再実装完了日時 */
+  reworkDoneAt?: string;
 }
 
 export interface SoundCue {
@@ -256,4 +211,28 @@ export interface LampCue {
   state: AssetState;
   assigneeId: string | null;
   note: string;
+}
+
+/**
+ * 機種ドメインのアクティビティ履歴。
+ * machineId は必須、productionId / assetId は任意。
+ */
+export type ActivityType =
+  | "production_updated"
+  | "phase_updated"
+  | "asset_received_final"
+  | "asset_rework_done"
+  | "member_assigned"
+  | "machine_created"
+  | "production_created";
+
+export interface ActivityEntry {
+  id: string;
+  type: ActivityType;
+  actorId: string;
+  machineId: string;
+  productionId?: string;
+  assetId?: string;
+  message: string;
+  createdAt: string;
 }
